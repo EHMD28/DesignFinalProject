@@ -6,6 +6,15 @@ namespace Colors {
         YELLOW,
         GREEN
     };
+
+    constexpr Colors::ColorType colors[] = {
+        Colors::NONE,
+        Colors::RED,
+        Colors::BLUE,
+        Colors::YELLOW,
+        Colors::GREEN
+    };
+    constexpr uint8_t num_colors = sizeof(colors) / sizeof(colors[0]);
 };
 
 namespace Buttons {
@@ -62,11 +71,46 @@ Leds::PinType button_to_led(Buttons::PinType pin) {
     }
 }
 
+namespace Display {
+    enum PinType : uint8_t {
+        // Least significant bit
+        BIT_ONE = 10,
+        BIT_TWO = 11,
+        BIT_THREE = 12,
+        // Most significant bit
+        BIT_FOUR = 13
+    };
+
+    constexpr Display::PinType pins[] = {
+        Display::BIT_ONE,
+        Display::BIT_TWO,
+        Display::BIT_THREE,
+        Display::BIT_FOUR
+    };
+    constexpr int num_pins = sizeof(pins) / sizeof(pins[0]);
+
+    void display_score(uint8_t score) {
+        for (int i = 0; i < num_pins; i++) {
+            int bit = bitRead(score, i);
+            if (bit == 1) {
+                digitalWrite(pins[i], HIGH);
+            } else {
+                digitalWrite(pins[i], LOW);
+            }
+        }
+    }
+}
+
 struct GameState {
     /* The longest a sequence can be is 256 colors, because that is the highest
     value which can be stored in an unsigned 8 bit integer like round. */
     Colors::ColorType sequence[UINT8_MAX];
+    /* Represents the current length of the sequence, starting from 1. 0
+    represents that no colors have been initalized. */
     uint8_t round;
+    /* Represents if the player has made a mistake yet. Currently, the game
+    doesn't have a win state. */ 
+    bool has_lost;
 };
 
 /* This is the global struct used for representing the current game state. */
@@ -84,9 +128,36 @@ void initalize_game_state() {
     }
 }
 
-bool
+void generate_next_color() {
+    /* Generates a random color from RED until the last color (in this case
+    green). */
+    uint8_t index = random(Colors::RED, Colors::num_colors - 1);
+    Colors::ColorType color = Colors::colors[index];
+    game_state.sequence[game_state.round] = color;
+    game_state.round++;
+}
+
+void display_sequence() {
+    for (int i = 0; i < game_state.round; i++) {
+        Leds::PinType pin = Leds::pin_of(game_state.sequence[i]);
+        digitalWrite(pin, HIGH);
+        // TODO: Remove magic numbers.
+        delay(750);
+        digitalWrite(pin, LOW);
+        delay(250);
+    }
+}
+
+void start_round() {
+    generate_next_color();
+    display_sequence();
+}
 
 void setup() {
+    /* Seeding the random number generation is necessary to have different
+    results each time. Calling analog read on an unconnected pin gives a
+    relatively random seed. */
+    randomSeed(analogRead(A0));
     initalize_game_state();
     /* Button pins should be configured as INPUT_PULLUP. A HIGH value indicates 
     the button isn't being pushed, and a LOW value indicates that it is being
@@ -98,18 +169,10 @@ void setup() {
     /* LED pins should be configured as OUTPUT. The circuit should be designed
     so that each LED only draws up to 20 mA of current. */
     pinMode(Leds::RED, OUTPUT);
-    pinMode(Leds::BLUE, OUTPUT);    
+    pinMode(Leds::BLUE, OUTPUT);
     pinMode(Leds::YELLOW, OUTPUT);
     pinMode(Leds::GREEN, OUTPUT);
 }
 
 void loop() {
-    for (int i = 0; i < Buttons::num_buttons; i++) {
-        Leds::PinType ledPinType = button_to_led(Buttons::buttons[i]);
-        if (digitalRead(Buttons::buttons[i]) == LOW) {
-            digitalWrite(ledPinType, HIGH);
-        } else {
-            digitalWrite(ledPinType, LOW);
-        }
-    }
 }
