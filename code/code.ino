@@ -133,7 +133,7 @@ namespace Display {
     constexpr int num_pins = sizeof(pins) / sizeof(pins[0]);
 
 
-    /* Gives an invalid value to the BCD decoder, resulting in a black
+    /* Gives an invalid value to the BCD decoder, resulting in a blank
     display */
     void reset() {
         digitalWrite(Display::BIT_ONE, HIGH);
@@ -168,7 +168,7 @@ namespace Display {
             number. To start with the most significant digit, divide 10^n where
             n is 1 less than the number of digits left. For example, 123 divided
             by 100 becomes 1.23 (truncated to 1), 1 % 10 is 1. For the second
-            digit, 123 becomes 12.3 (12) % 10 = 2. So on an so forth. */
+            digit, 123 becomes 12.3 (12) % 10 = 2. So on and so forth. */
             uint8_t truncated_num = floor(score / pow(10, num_digits - i - 1));
             uint8_t digit = truncated_num % 10;
             display_digit(digit);
