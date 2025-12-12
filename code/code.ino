@@ -1,6 +1,14 @@
+namespace Delays {
+    enum : uint16_t {
+        LONG = 1000,
+        MEDIUM_LONG = 750,
+        MEDIUM = 500,
+        SHORT = 250,
+    };
+};
+
 namespace Colors {
     enum ColorType : uint8_t {
-        NONE,
         RED,
         BLUE,
         YELLOW,
@@ -8,7 +16,6 @@ namespace Colors {
     };
 
     constexpr Colors::ColorType colors[] = {
-        Colors::NONE,
         Colors::RED,
         Colors::BLUE,
         Colors::YELLOW,
@@ -32,7 +39,14 @@ namespace Leds {
         digitalWrite(Leds::YELLOW, LOW);
         digitalWrite(Leds::GREEN, LOW);
     }
-};
+
+    void all_on() {
+        digitalWrite(Leds::RED, HIGH);
+        digitalWrite(Leds::BLUE, HIGH);
+        digitalWrite(Leds::YELLOW, HIGH);
+        digitalWrite(Leds::GREEN, HIGH);
+    }
+}
 
 namespace Buttons {
     /* The value of the enum variant corresponds to the pin. PinType 0 (RX) and
@@ -51,8 +65,8 @@ namespace Buttons {
         Buttons::YELLOW,
         Buttons::GREEN
     };
-    constexpr int num_buttons = sizeof(buttons) / sizeof(buttons[0]);
-};
+    constexpr uint8_t num_buttons = sizeof(buttons) / sizeof(buttons[0]);
+}
 
 
 Leds::PinType led_pin_of(Colors::ColorType color) {
@@ -97,18 +111,20 @@ Colors::ColorType get_button_input() {
     Leds::PinType led_pin;
     while (button_pin == 0) {
         /* Check to see if any of the buttons are being pressed */
-        for (int i = 0; i < Buttons::num_buttons; i++) {
+        for (uint8_t i = 0; i < Buttons::num_buttons; i++) {
             if (button_is_pressed(Buttons::buttons[i])) {
                 button_pin = Buttons::buttons[i];
                 led_pin = button_to_led(button_pin);
                 digitalWrite(led_pin, HIGH);
+                break;
             }
         }
     }
     /* When a button is held, it should only count as one press. */
     while (button_is_pressed(button_pin)) {
-        // TODO: Add delay to prevent unnecessary clock cycles. 
-        continue;
+        /* This delay is the prevent the Arduino from executing this polling
+        loop more times than is necessary. It can be removed if necessary. */
+        delay(Delays::SHORT);
     }
     digitalWrite(led_pin, LOW);
     return button_to_color(button_pin);
@@ -130,7 +146,7 @@ namespace Display {
         Display::BIT_THREE,
         Display::BIT_FOUR
     };
-    constexpr int num_pins = sizeof(pins) / sizeof(pins[0]);
+    constexpr uint8_t num_pins = sizeof(pins) / sizeof(pins[0]);
 
 
     /* Gives an invalid value to the BCD decoder, resulting in a blank
@@ -143,8 +159,8 @@ namespace Display {
     }
 
     void display_digit(uint8_t digit) {
-        for (int i = 0; i < num_pins; i++) {
-            int bit = bitRead(digit, i);
+        for (uint8_t i = 0; i < num_pins; i++) {
+            uint8_t bit = bitRead(digit, i);
             if (bit == 1) {
                 digitalWrite(pins[i], HIGH);
             } else {
@@ -163,7 +179,7 @@ namespace Display {
         floor the value of the logarithm, but C++ automatically ignores decimal
         places when converting from a decimal to an integer. */
         const uint8_t num_digits = log10(score) + 1;
-        for (int i = 0; i < num_digits; i++) {
+        for (uint8_t i = 0; i < num_digits; i++) {
             /* A number modulus 10 extracts the least significant digit from the
             number. To start with the most significant digit, divide 10^n where
             n is 1 less than the number of digits left. For example, 123 divided
@@ -172,15 +188,15 @@ namespace Display {
             uint8_t truncated_num = floor(score / pow(10, num_digits - i - 1));
             uint8_t digit = truncated_num % 10;
             display_digit(digit);
-            delay(500);
+            delay(Delays::MEDIUM);
         }
     }
 }
 
 struct GameState {
-    /* The longest a sequence can be is 256 colors, because that is the highest
-    value which can be stored in an unsigned 8 bit integer like round. */
-    Colors::ColorType sequence[UINT8_MAX];
+    /* The longest a sequence can be is 256 colors, because that is the largest
+    array which can be indexed using an unsigned 8-bit integer like `round`. */
+    Colors::ColorType sequence[UINT8_MAX + 1];
     /* Represents the current length of the sequence, starting from 1. 0
     represents that no colors have been initialized. */
     uint8_t round;
@@ -198,37 +214,32 @@ called in setup(), or else game_state will be using garbage values from memory.
 void initalize_game_state() {
     game_state.round = 0;
     game_state.has_lost = false;
-    /* TODO: Once the rest of the project is finished, check if this
-    initialization is necessary. */
-    for (int i = 0; i < UINT8_MAX; i++) {
-        game_state.sequence[i] = Colors::NONE;
-    }
 }
 
 void generate_next_color() {
-    /* Generates a random color from RED until the last color (in this case
-    green). */
-    uint8_t index = random(Colors::RED, Colors::num_colors - 1);
+    /* Generates a random color from RED until the last color (GREEN). The plus
+    one is because the max is exclusive. */
+    uint8_t index = random(Colors::RED, Colors::GREEN + 1);
     Colors::ColorType color = Colors::colors[index];
     game_state.sequence[game_state.round] = color;
     game_state.round++;
 }
 
 void display_sequence() {
-    for (int i = 0; i < game_state.round; i++) {
+    for (uint8_t i = 0; i < game_state.round; i++) {
         Leds::PinType pin = led_pin_of(game_state.sequence[i]);
         digitalWrite(pin, HIGH);
         // TODO: Remove magic numbers.
-        delay(750);
+        delay(Delays::MEDIUM_LONG);
         digitalWrite(pin, LOW);
-        delay(250);
+        delay(Delays::SHORT);
     }
 }
 
 void start_round() {
     generate_next_color();
     display_sequence();
-    for (int i = 0; i < game_state.round; i++) {
+    for (uint8_t i = 0; i < game_state.round; i++) {
         Colors::ColorType color = get_button_input();
         if (color != game_state.sequence[i]) {
             game_state.has_lost = true;
@@ -240,32 +251,32 @@ void start_round() {
 void display_start() {
     /* Light up in ascending order. */
     digitalWrite(Leds::RED, HIGH);
-    delay(500);
+    delay(Delays::MEDIUM);
     digitalWrite(Leds::BLUE, HIGH);
-    delay(500);
+    delay(Delays::MEDIUM);
     digitalWrite(Leds::YELLOW, HIGH);
-    delay(500);
+    delay(Delays::MEDIUM);
     digitalWrite(Leds::GREEN, HIGH);
-    delay(500);
+    delay(Delays::MEDIUM);
     /* Light up in alternating order. */
     Leds::reset();
     digitalWrite(Leds::RED, HIGH);
     digitalWrite(Leds::YELLOW, HIGH);
-    delay(500);
+    delay(Delays::MEDIUM);
     Leds::reset();
     digitalWrite(Leds::BLUE, HIGH);
     digitalWrite(Leds::GREEN, HIGH);
-    delay(500);
+    delay(Delays::MEDIUM);
 }
 
 void display_loss() {
-    Leds::reset();
+    Leds::all_on();
     /* The current round is the one the player failed on, so their score is 1
     less than that. */
     Display::display_score(game_state.round - 1);
-    delay(500);
+    delay(Delays::MEDIUM);
     Display::reset();
-    delay(1000);
+    delay(Delays::LONG * 2);
 }
 
 void setup() {
@@ -287,18 +298,24 @@ void setup() {
     pinMode(Leds::BLUE, OUTPUT);
     pinMode(Leds::YELLOW, OUTPUT);
     pinMode(Leds::GREEN, OUTPUT);
+    /* Display pins should be configured as outputs, since they are used to
+    drive the seven segment display. */
+    pinMode(Display::BIT_ONE, OUTPUT);
+    pinMode(Display::BIT_TWO, OUTPUT);
+    pinMode(Display::BIT_THREE, OUTPUT);
+    pinMode(Display::BIT_FOUR, OUTPUT);
     /* Once all initialization is done, display the startup sequence. */
     display_start();
     Leds::reset();
     Display::reset();
-    delay(1000);
+    delay(Delays::LONG);
 }
 
 void loop() {
     if (!game_state.has_lost)  {
         start_round();
         /* Delay between the end of one round and the start of the next. */
-        delay(1000); 
+        delay(Delays::LONG); 
     } else {
         display_loss();   
     }
