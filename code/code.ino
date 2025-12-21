@@ -313,6 +313,7 @@ void setup() {
 
 void loop() {
     if (!game_state.has_lost)  {
+        display_digit(game_state.round % 10);
         start_round();
         /* Delay between the end of one round and the start of the next. */
         delay(Delays::LONG); 
