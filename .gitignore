@@ -1,4 +1,5 @@
 temp/
+.vscode/
 code/build/
 .DS_Store
 # For PCBs designed using KiCad: https://www.kicad.org/
